@@ -43,6 +43,9 @@ INSERT OR IGNORE INTO variant(value, surface_id) VALUES (?, ?);
 selectBaseByValue:
 SELECT id FROM base WHERE value = ?;
 
+selectBaseById:
+SELECT id, value FROM base WHERE id = ?;
+
 selectSurfaceByValue:
 SELECT id, value, base_id, notes FROM surface WHERE value = ?;
 
