@@ -28,6 +28,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+include(":core")
 include(":magicindexer")
 include(":sample:composeApp")
 

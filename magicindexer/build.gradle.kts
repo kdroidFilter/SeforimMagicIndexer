@@ -2,13 +2,16 @@ plugins {
     alias(libs.plugins.multiplatform)
     alias(libs.plugins.maven.publish)
     alias(libs.plugins.kotlinx.serialization)
-    alias(libs.plugins.sqlDelight)
 }
 
 kotlin {
     jvm()
 
     sourceSets {
+        commonMain.dependencies {
+            api(project(":core"))
+        }
+
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.sqlDelight.driver.sqlite)
@@ -25,15 +28,4 @@ kotlin {
 
     }
 
-}
-
-
-sqldelight {
-    databases {
-        create("Database") {
-            // Database configuration here.
-            // https://cashapp.github.io/sqldelight
-            packageName.set("io.github.kdroidfilter.seforim.magicindexer.db")
-        }
-    }
 }
