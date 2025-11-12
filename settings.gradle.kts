@@ -30,5 +30,4 @@ dependencyResolutionManagement {
 }
 include(":core")
 include(":magicindexer")
-include(":sample:composeApp")
 
