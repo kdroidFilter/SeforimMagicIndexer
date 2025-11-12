@@ -9,57 +9,24 @@ kotlin {
     jvm()
 
     sourceSets {
-        commonMain.dependencies {
-            implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.coroutines.test)
-            implementation(libs.kotlinx.serialization.json)
-        }
-
-        commonTest.dependencies {
-            implementation(kotlin("test"))
-        }
-
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.sqlDelight.driver.sqlite)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.kotlinx.serialization.json)
+            implementation("com.google.genai:google-genai:1.26.0")
+        }
+
+        jvmTest.dependencies {
+            implementation(kotlin("test"))
+
         }
 
     }
 
 }
 
-//Publishing your Kotlin Multiplatform library to Maven Central
-//https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
-mavenPublishing {
-    publishToMavenCentral()
-    coordinates("io.github.kdroidfilter.seforim.magicindexer", "magicindexer", "1.0.0")
-
-    pom {
-        name = "SeforimMagicIndexer"
-        description = "Kotlin Multiplatform library"
-        url = "github url" //todo
-
-        licenses {
-            license {
-                name = "MIT"
-                url = "https://opensource.org/licenses/MIT"
-            }
-        }
-
-        developers {
-            developer {
-                id = "" //todo
-                name = "" //todo
-                email = "" //todo
-            }
-        }
-
-        scm {
-            url = "github url" //todo
-        }
-    }
-    if (project.hasProperty("signing.keyId")) signAllPublications()
-}
 
 sqldelight {
     databases {
