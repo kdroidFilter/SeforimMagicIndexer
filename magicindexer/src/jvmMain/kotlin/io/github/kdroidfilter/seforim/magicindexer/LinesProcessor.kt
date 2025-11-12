@@ -40,12 +40,12 @@ object LinesProcessor {
         val sourceDriver = JdbcSqliteDriver("jdbc:sqlite:$sourceDbPath")
         val repository = SeforimRepository(sourceDbPath, sourceDriver)
 
-        // Initialize the output database
-        println("Initializing output lexical database...")
+        // Initialize the output database (create if doesn't exist, or open existing)
         val dbFile = File(outputDbPath)
         if (dbFile.exists()) {
-            println("Deleting existing database: $outputDbPath")
-            dbFile.delete()
+            println("Opening existing database: $outputDbPath")
+        } else {
+            println("Creating new database: $outputDbPath")
         }
 
         val outputDriver = JdbcSqliteDriver("jdbc:sqlite:$outputDbPath")
@@ -56,7 +56,6 @@ object LinesProcessor {
         var totalLinesProcessed = 0
         var totalLinesSkipped = 0
         var totalEntriesInserted = 0
-        val jsonBackup = if (saveJsonBackup) mutableListOf<LexicalEntry>() else null
 
         try {
             // Process specified books
@@ -71,6 +70,9 @@ object LinesProcessor {
 
                 println("Book: ${book.title}")
                 println("Total lines: ${book.totalLines}")
+
+                // JSON backup per book
+                val bookJsonBackup = if (saveJsonBackup) mutableListOf<LexicalEntry>() else null
 
                 // Check how many lines already processed for this book
                 val alreadyProcessedCount = queries.countProcessedLinesForBook(bookId).executeAsOne()
@@ -122,8 +124,8 @@ object LinesProcessor {
                                 insertEntry(queries, entry)
                                 totalEntriesInserted++
 
-                                // Add to backup if enabled
-                                jsonBackup?.add(entry)
+                                // Add to book backup if enabled
+                                bookJsonBackup?.add(entry)
 
                             } catch (e: Exception) {
                                 System.err.println("Error inserting entry: ${entry.surface} -> ${entry.base}: ${e.message}")
@@ -149,17 +151,24 @@ object LinesProcessor {
 
                 val bookProcessedCount = queries.countProcessedLinesForBook(bookId).executeAsOne()
                 println("Completed book $bookId: $totalLinesProcessed new lines processed, $totalLinesSkipped skipped, $bookProcessedCount total processed for this book")
-            }
 
-            // Save JSON backup if requested
-            if (saveJsonBackup && jsonBackup != null) {
-                val jsonPath = outputDbPath.replace(".db", "-backup.json")
-                println("\nSaving JSON backup to: $jsonPath")
-                val json = LexicalEntrySerializer.toJson(
-                    io.github.kdroidfilter.seforim.magicindexer.model.LexicalEntries(jsonBackup)
-                )
-                File(jsonPath).writeText(json)
-                println("JSON backup saved successfully")
+                // Save JSON backup for this book
+                if (saveJsonBackup && bookJsonBackup != null && bookJsonBackup.isNotEmpty()) {
+                    // Sanitize book title for filename
+                    val sanitizedTitle = book.title
+                        .replace(Regex("[^a-zA-Z0-9א-ת\\s-]"), "")
+                        .replace(Regex("\\s+"), "-")
+                        .take(50) // Limit length
+
+                    val jsonPath = File(File(outputDbPath).parent, "book-${bookId}-${sanitizedTitle}.json").absolutePath
+                    println("Saving JSON backup for book $bookId to: $jsonPath")
+
+                    val json = LexicalEntrySerializer.toJson(
+                        io.github.kdroidfilter.seforim.magicindexer.model.LexicalEntries(bookJsonBackup)
+                    )
+                    File(jsonPath).writeText(json)
+                    println("JSON backup saved: ${bookJsonBackup.size} entries")
+                }
             }
 
             println("\n=== Processing Complete ===")

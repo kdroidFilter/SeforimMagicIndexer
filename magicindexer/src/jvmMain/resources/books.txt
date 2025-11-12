@@ -5,4 +5,5 @@
 # - Mixte : 1 2 5-8 12
 # - Commentaires avec #
 
-40
+#40 mishna brakhot
+115

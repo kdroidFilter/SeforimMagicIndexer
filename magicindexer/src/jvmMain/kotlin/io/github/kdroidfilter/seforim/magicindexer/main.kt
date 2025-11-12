@@ -5,6 +5,20 @@ import java.io.File
 fun main(args: Array<String>) {
     println("=== Lexical Index Database Generator ===\n")
 
+    // Check for special commands that don't require env vars
+    if (args.isNotEmpty()) {
+        when (args[0]) {
+            "restore" -> {
+                handleRestoreCommand(args)
+                return
+            }
+            "help", "--help", "-h" -> {
+                printUsage()
+                return
+            }
+        }
+    }
+
     // Get source DB from environment variable
     val sourceDbPath = System.getenv("SEFORIM_DB")
     if (sourceDbPath.isNullOrBlank()) {
@@ -29,9 +43,8 @@ fun main(args: Array<String>) {
         buildDir.mkdirs()
     }
     val outputDbPath = File(buildDir, "lexical.db").absolutePath
-    val jsonBackupPath = outputDbPath.replace(".db", "-backup.json")
 
-    // JSON backup is enabled by default
+    // JSON backup is enabled by default (one JSON per book)
     val saveJsonBackup = true
 
     // Load book IDs from resources
@@ -51,14 +64,14 @@ fun main(args: Array<String>) {
 
     println("Source DB: $sourceDbPath")
     println("Output DB: $outputDbPath")
-    println("JSON backup: $jsonBackupPath")
+    println("JSON backup: One file per book in build/db/")
     println("Books to process: ${bookIds.joinToString(", ")}")
     println()
 
     try {
         LinesProcessor.processLines(sourceDbPath, outputDbPath, bookIds, saveJsonBackup)
         println("\n✓ Database successfully created at: $outputDbPath")
-        println("✓ JSON backup saved at: $jsonBackupPath")
+        println("✓ JSON backups saved in: ${File(outputDbPath).parent}/")
     } catch (e: Exception) {
         System.err.println("\n✗ Error processing lines: ${e.message}")
         e.printStackTrace()
@@ -130,32 +143,87 @@ private fun parseBookIds(args: List<String>): List<Long> {
     return bookIds.distinct().sorted()
 }
 
+/**
+ * Handles the restore command for importing JSON backups.
+ */
+private fun handleRestoreCommand(args: Array<String>) {
+    if (args.size < 3) {
+        println("Error: 'restore' requires JSON file/directory path and target DB path")
+        println("\nUsage:")
+        println("  restore <json-file> <target-db>        # Restore single JSON")
+        println("  restore --dir <directory> <target-db>  # Restore all JSON files from directory")
+        return
+    }
+
+    try {
+        if (args[1] == "--dir") {
+            // Restore from directory
+            if (args.size < 4) {
+                println("Error: '--dir' requires directory path and target DB path")
+                return
+            }
+            val directoryPath = args[2]
+            val dbPath = args[3]
+            RestoreFromJson.restoreFromDirectory(directoryPath, dbPath)
+        } else {
+            // Restore single file or multiple files
+            val dbPath = args.last()
+            val jsonPaths = args.slice(1 until args.lastIndex)
+
+            if (jsonPaths.size == 1) {
+                RestoreFromJson.restore(jsonPaths[0], dbPath)
+            } else {
+                RestoreFromJson.restoreMultiple(jsonPaths, dbPath)
+            }
+        }
+    } catch (e: Exception) {
+        System.err.println("Error during restore: ${e.message}")
+        e.printStackTrace()
+    }
+}
+
 private fun printUsage() {
     println("""
         Usage:
-          java -jar magicindexer.jar
+          java -jar magicindexer.jar [command] [options]
 
-        Environment Variables (required):
-          SEFORIM_DB     Path to the SeforimLibrary database
-          GEMINI_API_KEY API key for Gemini LLM
+        Commands:
 
-        Configuration:
-          Book IDs are read from resources/books.txt
-          Output database: build/db/lexical.db (automatically created)
-          JSON backup: build/db/lexical-backup.json (automatically created)
+          (default) - Process books from SeforimLibrary database
+            Environment Variables (required):
+              SEFORIM_DB     Path to the SeforimLibrary database
+              GEMINI_API_KEY API key for Gemini LLM
 
-          Format in books.txt:
-            - Individual IDs: 1 2 3
-            - Ranges: 1-10
-            - Mixed: 1 2 5-8 12
-            - Comments with #
+            Configuration:
+              Book IDs are read from resources/books.txt
+              Output database: build/db/lexical.db (automatically created)
+              JSON backups: build/db/book-{id}-{title}.json (one per book)
 
-        Example:
-          export SEFORIM_DB=/path/to/seforim.db
-          export GEMINI_API_KEY=your-api-key
+            Example:
+              export SEFORIM_DB=/path/to/seforim.db
+              export GEMINI_API_KEY=your-api-key
+              java -jar magicindexer.jar
 
-          # Process books defined in resources/books.txt
-          java -jar magicindexer.jar
+          restore <json-file> <target-db>
+            Restore/import a single JSON backup into a database
+
+            Example:
+              java -jar magicindexer.jar restore backup.json lexical.db
+
+          restore <json-file1> <json-file2> ... <target-db>
+            Merge multiple JSON backups into a single database
+
+            Example:
+              java -jar magicindexer.jar restore book-1.json book-2.json lexical.db
+
+          restore --dir <directory> <target-db>
+            Restore all JSON files from a directory into a database
+
+            Example:
+              java -jar magicindexer.jar restore --dir build/db/ merged.db
+
+          help, --help, -h
+            Show this help message
     """.trimIndent())
     println()
 }

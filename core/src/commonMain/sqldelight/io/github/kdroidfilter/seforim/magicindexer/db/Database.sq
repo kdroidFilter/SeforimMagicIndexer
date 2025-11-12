@@ -5,12 +5,12 @@
 --  - a base can be linked to many surfaces (one-to-many)
 --  - variant values must be unique and are linked to a surface
 
-CREATE TABLE base (
+CREATE TABLE IF NOT EXISTS base (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   value TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE surface (
+CREATE TABLE IF NOT EXISTS surface (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   value TEXT NOT NULL UNIQUE,
   base_id INTEGER NOT NULL REFERENCES base(id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -18,7 +18,7 @@ CREATE TABLE surface (
   notes TEXT
 );
 
-CREATE TABLE variant (
+CREATE TABLE IF NOT EXISTS variant (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
   value TEXT NOT NULL,
   surface_id INTEGER NOT NULL REFERENCES surface(id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -27,16 +27,16 @@ CREATE TABLE variant (
 
 -- Table to track processed lines from source database
 -- Prevents reprocessing the same line multiple times
-CREATE TABLE processed_lines (
+CREATE TABLE IF NOT EXISTS processed_lines (
   line_id INTEGER NOT NULL PRIMARY KEY,
   book_id INTEGER NOT NULL,
   processed_at INTEGER NOT NULL -- Unix timestamp
 );
 
 -- Helpful indexes for faster lookups and joins
-CREATE INDEX surface_base_id_index ON surface(base_id);
-CREATE INDEX variant_surface_id_index ON variant(surface_id);
-CREATE INDEX processed_lines_book_id_index ON processed_lines(book_id);
+CREATE INDEX IF NOT EXISTS surface_base_id_index ON surface(base_id);
+CREATE INDEX IF NOT EXISTS variant_surface_id_index ON variant(surface_id);
+CREATE INDEX IF NOT EXISTS processed_lines_book_id_index ON processed_lines(book_id);
 
 -- Convenience upsert-like helpers (SQLite): ignore duplicates thanks to UNIQUE constraints
 insertBase:
