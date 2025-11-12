@@ -1,3 +1,7 @@
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
 plugins {
     alias(libs.plugins.multiplatform)
     alias(libs.plugins.maven.publish)
@@ -5,7 +9,11 @@ plugins {
 }
 
 kotlin {
-    jvm()
+    jvm {
+        mainRun {
+            mainClass = "io.github.kdroidfilter.seforim.magicindexer.MainKt"
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
