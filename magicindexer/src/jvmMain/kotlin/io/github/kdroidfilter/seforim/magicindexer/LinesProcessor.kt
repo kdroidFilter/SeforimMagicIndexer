@@ -54,6 +54,7 @@ object LinesProcessor {
         val queries = database.databaseQueries
 
         var totalLinesProcessed = 0
+        var totalLinesSkipped = 0
         var totalEntriesInserted = 0
         val jsonBackup = if (saveJsonBackup) mutableListOf<LexicalEntry>() else null
 
@@ -71,6 +72,12 @@ object LinesProcessor {
                 println("Book: ${book.title}")
                 println("Total lines: ${book.totalLines}")
 
+                // Check how many lines already processed for this book
+                val alreadyProcessedCount = queries.countProcessedLinesForBook(bookId).executeAsOne()
+                if (alreadyProcessedCount > 0) {
+                    println("Already processed: $alreadyProcessedCount lines (will skip)")
+                }
+
                 // Get all lines for this book
                 val lines = repository.getLines(bookId, 0, book.totalLines)
                 println("Retrieved ${lines.size} lines")
@@ -82,9 +89,19 @@ object LinesProcessor {
                     }
 
                     try {
+                        // Check if line already processed
+                        val isProcessed = queries.isLineProcessed(line.id).executeAsOne()
+                        if (isProcessed) {
+                            totalLinesSkipped++
+                            if ((index + 1) % 100 == 0) {
+                                println("  Skipped ${totalLinesSkipped} already processed lines...")
+                            }
+                            return@forEachIndexed
+                        }
+
                         // Call LLM with line content
                         if ((index + 1) % 10 == 0 || index == 0) {
-                            println("Processing line ${index + 1}/${lines.size} from book $bookId...")
+                            println("Processing line ${index + 1}/${lines.size} (line_id: ${line.id}) from book $bookId...")
                         }
 
                         val response = LLMProvider.generateResponse(line.content)
@@ -113,11 +130,15 @@ object LinesProcessor {
                             }
                         }
 
+                        // Mark line as processed
+                        val currentTime = System.currentTimeMillis() / 1000
+                        queries.insertProcessedLine(line.id, bookId, currentTime)
+
                         totalLinesProcessed++
 
                         // Progress update every 10 lines
                         if ((index + 1) % 10 == 0) {
-                            println("  Progress: ${index + 1}/${lines.size} lines | $totalEntriesInserted entries inserted")
+                            println("  Progress: ${index + 1}/${lines.size} lines | $totalLinesProcessed new, $totalLinesSkipped skipped | $totalEntriesInserted entries")
                         }
 
                     } catch (e: Exception) {
@@ -126,7 +147,8 @@ object LinesProcessor {
                     }
                 }
 
-                println("Completed book $bookId: $totalLinesProcessed lines processed, $totalEntriesInserted entries inserted")
+                val bookProcessedCount = queries.countProcessedLinesForBook(bookId).executeAsOne()
+                println("Completed book $bookId: $totalLinesProcessed new lines processed, $totalLinesSkipped skipped, $bookProcessedCount total processed for this book")
             }
 
             // Save JSON backup if requested
@@ -141,12 +163,13 @@ object LinesProcessor {
             }
 
             println("\n=== Processing Complete ===")
-            println("Total lines processed: $totalLinesProcessed")
+            println("Total new lines processed: $totalLinesProcessed")
+            println("Total lines skipped (already processed): $totalLinesSkipped")
             println("Total entries inserted: $totalEntriesInserted")
             println("Output DB: $outputDbPath")
 
             // Print statistics
-            printStatistics(queries)
+            printStatistics(queries, bookIds)
 
         } finally {
             // Close connections
@@ -191,9 +214,17 @@ object LinesProcessor {
     /**
      * Prints database statistics.
      */
-    private fun printStatistics(queries: io.github.kdroidfilter.seforim.magicindexer.db.DatabaseQueries) {
+    private fun printStatistics(queries: io.github.kdroidfilter.seforim.magicindexer.db.DatabaseQueries, bookIds: List<Long>) {
         println("\n=== Database Statistics ===")
         println("Database created successfully with incremental writes")
+
+        // Statistics per book
+        println("\nProcessed lines per book:")
+        bookIds.forEach { bookId ->
+            val count = queries.countProcessedLinesForBook(bookId).executeAsOne()
+            println("  Book $bookId: $count lines processed")
+        }
+
         println("===========================\n")
     }
 }

@@ -29,8 +29,10 @@ fun main(args: Array<String>) {
         buildDir.mkdirs()
     }
     val outputDbPath = File(buildDir, "lexical.db").absolutePath
+    val jsonBackupPath = outputDbPath.replace(".db", "-backup.json")
 
-    val saveJsonBackup = args.contains("--save-json")
+    // JSON backup is enabled by default
+    val saveJsonBackup = true
 
     // Load book IDs from resources
     println("Loading book IDs from resources/books.txt...")
@@ -49,15 +51,14 @@ fun main(args: Array<String>) {
 
     println("Source DB: $sourceDbPath")
     println("Output DB: $outputDbPath")
+    println("JSON backup: $jsonBackupPath")
     println("Books to process: ${bookIds.joinToString(", ")}")
-    if (saveJsonBackup) {
-        println("JSON backup will be saved to: ${outputDbPath.replace(".db", "-backup.json")}")
-    }
     println()
 
     try {
         LinesProcessor.processLines(sourceDbPath, outputDbPath, bookIds, saveJsonBackup)
         println("\n✓ Database successfully created at: $outputDbPath")
+        println("✓ JSON backup saved at: $jsonBackupPath")
     } catch (e: Exception) {
         System.err.println("\n✗ Error processing lines: ${e.message}")
         e.printStackTrace()
@@ -132,7 +133,7 @@ private fun parseBookIds(args: List<String>): List<Long> {
 private fun printUsage() {
     println("""
         Usage:
-          java -jar magicindexer.jar [--save-json]
+          java -jar magicindexer.jar
 
         Environment Variables (required):
           SEFORIM_DB     Path to the SeforimLibrary database
@@ -141,6 +142,7 @@ private fun printUsage() {
         Configuration:
           Book IDs are read from resources/books.txt
           Output database: build/db/lexical.db (automatically created)
+          JSON backup: build/db/lexical-backup.json (automatically created)
 
           Format in books.txt:
             - Individual IDs: 1 2 3
@@ -148,18 +150,12 @@ private fun printUsage() {
             - Mixed: 1 2 5-8 12
             - Comments with #
 
-        Arguments:
-          --save-json    Optional: save JSON backup for debugging
-
-        Examples:
+        Example:
           export SEFORIM_DB=/path/to/seforim.db
           export GEMINI_API_KEY=your-api-key
 
           # Process books defined in resources/books.txt
           java -jar magicindexer.jar
-
-          # With JSON backup
-          java -jar magicindexer.jar --save-json
     """.trimIndent())
     println()
 }
