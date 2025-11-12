@@ -21,6 +21,11 @@ kotlin {
         }
 
         jvmMain.dependencies {
+            // SeforimLibrary dependencies from parent build
+            implementation("io.github.kdroidfilter.seforimlibrary:core")
+            implementation("io.github.kdroidfilter.seforimlibrary:dao")
+
+            // Other dependencies
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.sqlDelight.driver.sqlite)
             implementation(libs.kotlinx.coroutines.core)

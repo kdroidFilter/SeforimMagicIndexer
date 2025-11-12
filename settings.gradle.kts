@@ -31,3 +31,11 @@ dependencyResolutionManagement {
 include(":core")
 include(":magicindexer")
 
+// Include parent SeforimLibrary modules
+includeBuild("..") {
+    dependencySubstitution {
+        substitute(module("io.github.kdroidfilter.seforimlibrary:core")).using(project(":core"))
+        substitute(module("io.github.kdroidfilter.seforimlibrary:dao")).using(project(":dao"))
+    }
+}
+
