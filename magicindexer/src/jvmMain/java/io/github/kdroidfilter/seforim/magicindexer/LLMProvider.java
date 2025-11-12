@@ -13,10 +13,10 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 
-public class App {
+public class LLMProvider {
 
   private static String loadSystemPrompt() {
-    try (InputStream inputStream = App.class.getResourceAsStream("/system-prompt.txt")) {
+    try (InputStream inputStream = LLMProvider.class.getResourceAsStream("/system-prompt.txt")) {
       if (inputStream == null) {
         throw new RuntimeException("Could not find system-prompt.txt in resources");
       }
@@ -30,7 +30,7 @@ public class App {
   }
 
   private static String loadResponseSchema() {
-    try (InputStream inputStream = App.class.getResourceAsStream("/response-schema.json")) {
+    try (InputStream inputStream = LLMProvider.class.getResourceAsStream("/response-schema.json")) {
       if (inputStream == null) {
         throw new RuntimeException("Could not find response-schema.json in resources");
       }
@@ -43,14 +43,12 @@ public class App {
     }
   }
 
-  /**
-   * Appelle le modèle LLM avec l'entrée fournie et renvoie la réponse textuelle.
-   *
-   * Prérequis: la variable d'environnement GEMINI_API_KEY doit être définie.
-   *
-   * @param input Texte d'entrée utilisateur à envoyer au modèle
-   * @return La réponse du LLM (texte). Si aucun texte n'est retourné, renvoie une chaîne vide.
-   */
+    /**
+     * Calls the LLM model with the provided input and returns the text response.
+     * Prerequisite: The GEMINI_API_KEY environment variable must be set.
+     * @param input User input text to send to the model
+     * @return The LLM response (text). If no text is returned, returns an empty string.
+     */
   public static String generateResponse(String input) {
     String apiKey = System.getenv("GEMINI_API_KEY");
     Client client = Client.builder().apiKey(apiKey).build();
