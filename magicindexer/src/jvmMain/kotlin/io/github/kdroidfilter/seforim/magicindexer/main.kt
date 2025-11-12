@@ -1,5 +1,7 @@
 package io.github.kdroidfilter.seforim.magicindexer
 
+import java.io.File
+
 fun main(args: Array<String>) {
     println("=== Lexical Index Database Generator ===\n")
 
@@ -21,37 +23,73 @@ fun main(args: Array<String>) {
         return
     }
 
-    if (args.isEmpty()) {
-        printUsage()
-        return
+    // Output DB path in build/db directory
+    val buildDir = File("build/db")
+    if (!buildDir.exists()) {
+        buildDir.mkdirs()
     }
+    val outputDbPath = File(buildDir, "lexical.db").absolutePath
 
-    val outputDbPath = args[0]
-
-    // Parse book IDs from remaining arguments
-    val bookIdArgs = args.drop(1).filter { it != "--save-json" }
-    if (bookIdArgs.isEmpty()) {
-        println("Error: No book IDs specified")
-        printUsage()
-        return
-    }
-
-    val bookIds = parseBookIds(bookIdArgs)
     val saveJsonBackup = args.contains("--save-json")
+
+    // Load book IDs from resources
+    println("Loading book IDs from resources/books.txt...")
+    val bookIds = try {
+        loadBookIdsFromResources()
+    } catch (e: Exception) {
+        System.err.println("Error loading book IDs: ${e.message}")
+        e.printStackTrace()
+        return
+    }
+
+    if (bookIds.isEmpty()) {
+        println("Error: No book IDs found in resources/books.txt")
+        return
+    }
 
     println("Source DB: $sourceDbPath")
     println("Output DB: $outputDbPath")
     println("Books to process: ${bookIds.joinToString(", ")}")
     if (saveJsonBackup) {
-        println("JSON backup will be saved")
+        println("JSON backup will be saved to: ${outputDbPath.replace(".db", "-backup.json")}")
     }
     println()
 
     try {
         LinesProcessor.processLines(sourceDbPath, outputDbPath, bookIds, saveJsonBackup)
+        println("\n✓ Database successfully created at: $outputDbPath")
     } catch (e: Exception) {
-        System.err.println("\nError processing lines: ${e.message}")
+        System.err.println("\n✗ Error processing lines: ${e.message}")
         e.printStackTrace()
+    }
+}
+
+/**
+ * Loads book IDs from the books.txt file in resources.
+ * Supports:
+ * - Individual IDs: 1 2 3
+ * - Ranges: 1-10
+ * - Mixed: 1 2 5-8 12
+ * - Comments with #
+ */
+private fun loadBookIdsFromResources(): List<Long> {
+    val resourcePath = "/books.txt"
+    val inputStream = object {}.javaClass.getResourceAsStream(resourcePath)
+        ?: throw IllegalArgumentException("Could not find $resourcePath in resources")
+
+    return inputStream.bufferedReader().useLines { lines ->
+        val bookIdArgs = mutableListOf<String>()
+
+        lines.forEach { line ->
+            val trimmed = line.trim()
+            // Skip empty lines and comments
+            if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
+                // Split by whitespace and add all tokens
+                bookIdArgs.addAll(trimmed.split(Regex("\\s+")))
+            }
+        }
+
+        parseBookIds(bookIdArgs)
     }
 }
 
@@ -94,29 +132,34 @@ private fun parseBookIds(args: List<String>): List<Long> {
 private fun printUsage() {
     println("""
         Usage:
-          java -jar magicindexer.jar <output-db-path> <book-ids...> [--save-json]
+          java -jar magicindexer.jar [--save-json]
 
         Environment Variables (required):
           SEFORIM_DB     Path to the SeforimLibrary database
           GEMINI_API_KEY API key for Gemini LLM
 
+        Configuration:
+          Book IDs are read from resources/books.txt
+          Output database: build/db/lexical.db (automatically created)
+
+          Format in books.txt:
+            - Individual IDs: 1 2 3
+            - Ranges: 1-10
+            - Mixed: 1 2 5-8 12
+            - Comments with #
+
         Arguments:
-          <output-db-path>  Path where the lexical database will be created
-          <book-ids...>     Book IDs to process (individual: 1 2 3, range: 1-10, mixed: 1 2 5-8)
-          --save-json       Optional: save JSON backup for debugging
+          --save-json    Optional: save JSON backup for debugging
 
         Examples:
           export SEFORIM_DB=/path/to/seforim.db
           export GEMINI_API_KEY=your-api-key
 
-          # Process books 1, 2, and 3
-          java -jar magicindexer.jar lexical.db 1 2 3
+          # Process books defined in resources/books.txt
+          java -jar magicindexer.jar
 
-          # Process books 1 to 10
-          java -jar magicindexer.jar lexical.db 1-10
-
-          # Process books 1, 2, and 5 to 8 with JSON backup
-          java -jar magicindexer.jar lexical.db 1 2 5-8 --save-json
+          # With JSON backup
+          java -jar magicindexer.jar --save-json
     """.trimIndent())
     println()
 }

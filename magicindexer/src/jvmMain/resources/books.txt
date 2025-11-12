@@ -1,0 +1,8 @@
+# Liste des IDs de livres à traiter
+# Formats supportés :
+# - IDs individuels : 1 2 3
+# - Ranges : 1-10
+# - Mixte : 1 2 5-8 12
+# - Commentaires avec #
+
+1
