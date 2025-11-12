@@ -1,0 +1,61 @@
+{
+  "type": "object",
+  "description": "פלט נירמול לקסיקלי של טקסט עברי־ארמי.",
+  "properties": {
+    "entries": {
+      "type": "array",
+      "description": "רשימת ערכים לקסיקליים שנמצאו בטקסט.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "surface": {
+            "type": "string",
+            "description": "הצורה כפי שהופיעה בקלט (ללא ניקוד)."
+          },
+          "base": {
+            "type": "string",
+            "description": "צורת היסוד ללא תחיליות ה/ו/ב/ל/כ וללא כינויים."
+          },
+          "variants": {
+            "type": "array",
+            "description": "כל הצורות התקניות המנורמלות (עברית/ארמית; חסר/מלא; תקופות שונות; ללא כפילויות).",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "components": {
+            "type": "array",
+            "description": "רכיבי הצירוף הקבוע לפי סדרם.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "description": "הבהרות נוספות (רשות)."
+          }
+        },
+        "required": [
+          "surface",
+          "base",
+          "variants"
+        ],
+        "propertyOrdering": [
+          "surface",
+          "base",
+          "variants",
+          "components",
+          "notes"
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "entries"
+  ],
+  "propertyOrdering": [
+    "entries"
+  ]
+}

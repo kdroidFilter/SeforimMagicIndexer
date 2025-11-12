@@ -30,7 +30,7 @@ kotlin {
 
 sqldelight {
     databases {
-        create("MyDatabase") {
+        create("Database") {
             // Database configuration here.
             // https://cashapp.github.io/sqldelight
             packageName.set("io.github.kdroidfilter.seforim.magicindexer.db")

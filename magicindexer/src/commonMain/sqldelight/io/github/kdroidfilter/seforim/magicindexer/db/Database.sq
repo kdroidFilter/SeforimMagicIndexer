@@ -1,0 +1,62 @@
+-- Schema for storing surfaces, bases, and variants
+-- Requirements:
+--  - surface values must be unique
+--  - base values must be unique
+--  - a base can be linked to many surfaces (one-to-many)
+--  - variant values must be unique and are linked to a surface
+
+CREATE TABLE base (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  value TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE surface (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  value TEXT NOT NULL UNIQUE,
+  base_id INTEGER NOT NULL REFERENCES base(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  -- optional notes field (present for some entries in sample payload)
+  notes TEXT
+);
+
+CREATE TABLE variant (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  value TEXT NOT NULL,
+  surface_id INTEGER NOT NULL REFERENCES surface(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  UNIQUE (value, surface_id)
+);
+
+-- Helpful indexes for faster lookups and joins
+CREATE INDEX surface_base_id_index ON surface(base_id);
+CREATE INDEX variant_surface_id_index ON variant(surface_id);
+
+-- Convenience upsert-like helpers (SQLite): ignore duplicates thanks to UNIQUE constraints
+insertBase:
+INSERT OR IGNORE INTO base(value) VALUES (?);
+
+insertSurface:
+INSERT OR IGNORE INTO surface(value, base_id, notes) VALUES (?, ?, ?);
+
+insertVariant:
+INSERT OR IGNORE INTO variant(value, surface_id) VALUES (?, ?);
+
+-- Common lookups
+selectBaseByValue:
+SELECT id FROM base WHERE value = ?;
+
+selectSurfaceByValue:
+SELECT id, value, base_id, notes FROM surface WHERE value = ?;
+
+selectVariantByValue:
+SELECT id, value, surface_id FROM variant WHERE value = ?;
+
+selectSurfacesForBase:
+SELECT s.id, s.value, s.base_id, s.notes
+FROM surface AS s
+WHERE s.base_id = ?
+ORDER BY s.id;
+
+selectVariantsForSurface:
+SELECT v.id, v.value, v.surface_id
+FROM variant AS v
+WHERE v.surface_id = ?
+ORDER BY v.id;
