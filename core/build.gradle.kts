@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.multiplatform)
     alias(libs.plugins.maven.publish)
+    alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.sqlDelight)
 }
 
@@ -9,7 +10,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // No additional dependencies needed for the schema
+            implementation(libs.kotlinx.serialization.json)
         }
     }
 }
