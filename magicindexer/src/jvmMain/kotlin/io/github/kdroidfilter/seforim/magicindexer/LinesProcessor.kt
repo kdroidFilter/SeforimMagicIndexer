@@ -14,9 +14,13 @@ import java.io.File
  */
 object LinesProcessor {
 
+    private const val BATCH_SIZE = 10 // Number of lines to process together
+    private const val TIMEOUT_SECONDS = 40 // Timeout per batch in seconds
+
     /**
      * Processes lines from specified books in the SeforimLibrary database.
      * Writes entries directly to the lexical database incrementally.
+     * Lines are processed in batches of 10 to optimize LLM calls.
      *
      * @param sourceDbPath Path to the source SeforimLibrary database
      * @param outputDbPath Path to save the generated lexical database
@@ -83,36 +87,59 @@ object LinesProcessor {
                 // Get all lines for this book
                 val lines = repository.getLines(bookId, 0, book.totalLines)
                 println("Retrieved ${lines.size} lines")
+                println("Processing in batches of $BATCH_SIZE lines")
 
-                // Process each line
-                lines.forEachIndexed { index, line ->
-                    if (line.content.isBlank()) {
-                        return@forEachIndexed
-                    }
+                // Process lines in batches
+                var batchIndex = 0
+                while (batchIndex < lines.size) {
+                    val batchContents = mutableListOf<String>()
+                    val batchLineIds = mutableListOf<Long>()
 
-                    try {
+                    // Build batch of unprocessed lines
+                    var currentIndex = batchIndex
+                    while (batchContents.size < BATCH_SIZE && currentIndex < lines.size) {
+                        val line = lines[currentIndex]
+                        currentIndex++
+
+                        // Skip blank lines
+                        if (line.content.isBlank()) {
+                            continue
+                        }
+
                         // Check if line already processed
                         val isProcessed = queries.isLineProcessed(line.id).executeAsOne()
                         if (isProcessed) {
                             totalLinesSkipped++
-                            if ((index + 1) % 100 == 0) {
-                                println("  Skipped ${totalLinesSkipped} already processed lines...")
-                            }
-                            return@forEachIndexed
+                            continue
                         }
 
-                        // Call LLM with line content
-                        if ((index + 1) % 10 == 0 || index == 0) {
-                            println("Processing line ${index + 1}/${lines.size} (line_id: ${line.id}) from book $bookId...")
-                        }
+                        batchContents.add(line.content)
+                        batchLineIds.add(line.id)
+                    }
 
-                        val response = LLMProvider.generateResponse(line.content)
+                    batchIndex = currentIndex
+
+                    // Skip if batch is empty
+                    if (batchContents.isEmpty()) {
+                        if (batchIndex % 100 == 0 && totalLinesSkipped > 0) {
+                            println("  Skipped $totalLinesSkipped already processed lines...")
+                        }
+                        continue
+                    }
+
+                    try {
+                        // Combine batch lines content
+                        val combinedContent = batchContents.joinToString("\n")
+
+                        // Progress update
+                        println("Processing batch at lines ${batchIndex - batchContents.size + 1}-$batchIndex/${lines.size} (${batchContents.size} lines in batch, ${TIMEOUT_SECONDS}s timeout)")
+
+                        // Call LLM with combined content and timeout
+                        val response = LLMProvider.generateResponse(combinedContent, TIMEOUT_SECONDS)
 
                         if (response.isBlank()) {
-                            if ((index + 1) % 10 == 0) {
-                                println("  Empty response from LLM, skipping...")
-                            }
-                            return@forEachIndexed
+                            println("  ⚠ Empty response from LLM (possibly timeout or error), skipping batch...")
+                            continue
                         }
 
                         // Parse JSON response
@@ -132,19 +159,19 @@ object LinesProcessor {
                             }
                         }
 
-                        // Mark line as processed
+                        // Mark all lines in batch as processed
                         val currentTime = System.currentTimeMillis() / 1000
-                        queries.insertProcessedLine(line.id, bookId, currentTime)
-
-                        totalLinesProcessed++
-
-                        // Progress update every 10 lines
-                        if ((index + 1) % 10 == 0) {
-                            println("  Progress: ${index + 1}/${lines.size} lines | $totalLinesProcessed new, $totalLinesSkipped skipped | $totalEntriesInserted entries")
+                        batchLineIds.forEach { lineId ->
+                            queries.insertProcessedLine(lineId, bookId, currentTime)
                         }
 
+                        totalLinesProcessed += batchContents.size
+
+                        // Progress update
+                        println("  → Processed ${batchContents.size} lines | Generated ${entries.size} entries | Total: $totalLinesProcessed new, $totalLinesSkipped skipped")
+
                     } catch (e: Exception) {
-                        System.err.println("Error processing line ${line.id}: ${e.message}")
+                        System.err.println("Error processing batch: ${e.message}")
                         e.printStackTrace()
                     }
                 }

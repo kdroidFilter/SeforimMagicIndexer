@@ -47,11 +47,21 @@ public class LLMProvider {
      * Calls the LLM model with the provided input and returns the text response.
      * Prerequisite: The GEMINI_API_KEY environment variable must be set.
      * @param input User input text to send to the model
+     * @param timeoutSeconds Timeout in seconds for the API call
      * @return The LLM response (text). If no text is returned, returns an empty string.
      */
-  public static String generateResponse(String input) {
+  public static String generateResponse(String input, int timeoutSeconds) {
     String apiKey = System.getenv("GEMINI_API_KEY");
-    Client client = Client.builder().apiKey(apiKey).build();
+
+    // Configure HTTP timeout (Note: timeout may not work in versions 1.8.0+)
+    HttpOptions httpOptions = HttpOptions.builder()
+        .timeout(timeoutSeconds * 1000)  // timeout in milliseconds
+        .build();
+
+    Client client = Client.builder()
+        .apiKey(apiKey)
+        .httpOptions(httpOptions)
+        .build();
 
     String model = "gemini-2.5-flash";
     List<Content> contents = ImmutableList.of(
@@ -67,18 +77,6 @@ public class LLMProvider {
       GenerateContentConfig
         .builder()
         .temperature(0f)
-        .thinkingConfig(
-          ThinkingConfig
-            .builder()
-            .thinkingBudget(0)
-            .build()
-        )
-        .imageConfig(
-          ImageConfig
-            .builder()
-            .imageSize("1K")
-            .build()
-        )
         .responseMimeType("application/json")
         .responseSchema(Schema.fromJson(loadResponseSchema()))
         .systemInstruction(
@@ -88,7 +86,17 @@ public class LLMProvider {
         )
         .build();
 
-    GenerateContentResponse res = client.models.generateContent(model, contents, config);
+    GenerateContentResponse res;
+    try {
+      res = client.models.generateContent(model, contents, config);
+    } catch (Exception e) {
+      System.err.println("Error calling LLM API: " + e.getMessage());
+      if (e instanceof java.net.SocketTimeoutException ||
+          (e.getMessage() != null && e.getMessage().contains("timeout"))) {
+        System.err.println("Request timed out after " + timeoutSeconds + " seconds");
+      }
+      return "";
+    }
 
     if (res.candidates().isEmpty() ||
         res.candidates().get().get(0).content().isEmpty() ||
@@ -104,5 +112,15 @@ public class LLMProvider {
       }
     }
     return sb.toString();
+  }
+
+  /**
+   * Calls the LLM model with the provided input and returns the text response.
+   * Uses default timeout of 40 seconds.
+   * @param input User input text to send to the model
+   * @return The LLM response (text). If no text is returned, returns an empty string.
+   */
+  public static String generateResponse(String input) {
+    return generateResponse(input, 40);
   }
 }
