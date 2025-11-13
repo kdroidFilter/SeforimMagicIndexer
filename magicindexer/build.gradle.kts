@@ -32,6 +32,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.kotlinx.serialization.json)
             implementation("com.google.genai:google-genai:1.26.0")
+            implementation("org.jsoup:jsoup:1.21.2")
         }
 
         jvmTest.dependencies {

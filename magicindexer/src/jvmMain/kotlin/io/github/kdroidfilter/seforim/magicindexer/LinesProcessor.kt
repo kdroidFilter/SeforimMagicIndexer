@@ -6,6 +6,8 @@ import io.github.kdroidfilter.seforim.magicindexer.db.Database
 import io.github.kdroidfilter.seforim.magicindexer.model.LexicalEntry
 import io.github.kdroidfilter.seforim.magicindexer.model.LexicalEntrySerializer
 import kotlinx.coroutines.runBlocking
+import org.jsoup.Jsoup
+import org.jsoup.safety.Safelist
 import java.io.File
 
 /**
@@ -16,6 +18,17 @@ object LinesProcessor {
 
     private const val BATCH_SIZE = 10 // Number of lines to process together
     private const val TIMEOUT_SECONDS = 40 // Timeout per batch in seconds
+
+    /**
+     * Cleans HTML tags from text using JSoup and returns plain text.
+     * Removes all HTML tags, decodes HTML entities, and trims whitespace.
+     */
+    private fun cleanHtml(html: String): String {
+        return Jsoup.clean(html, Safelist.none())
+            .replace("&nbsp;", " ")
+            .replace("\u00A0", " ")
+            .trim()
+    }
 
     /**
      * Processes lines from specified books in the SeforimLibrary database.
@@ -113,8 +126,12 @@ object LinesProcessor {
                             continue
                         }
 
-                        batchContents.add(line.content)
-                        batchLineIds.add(line.id)
+                        // Clean HTML before adding to batch
+                        val cleanedContent = cleanHtml(line.content)
+                        if (cleanedContent.isNotBlank()) {
+                            batchContents.add(cleanedContent)
+                            batchLineIds.add(line.id)
+                        }
                     }
 
                     batchIndex = currentIndex
