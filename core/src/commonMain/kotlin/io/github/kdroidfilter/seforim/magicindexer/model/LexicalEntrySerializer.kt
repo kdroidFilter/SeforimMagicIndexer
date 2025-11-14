@@ -1,5 +1,6 @@
 package io.github.kdroidfilter.seforim.magicindexer.model
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -12,10 +13,12 @@ object LexicalEntrySerializer {
     /**
      * JSON configuration with pretty printing and lenient parsing.
      */
+    @OptIn(ExperimentalSerializationApi::class)
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
         encodeDefaults = true
+        allowTrailingComma = true
     }
 
     /**
