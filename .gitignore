@@ -6,6 +6,8 @@
 .DS_Store
 build
 */build
+!magicindexer/build/db/
+!magicindexer/build/db/lexical.db
 captures
 .externalNativeBuild
 .cxx
