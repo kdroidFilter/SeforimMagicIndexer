@@ -17,7 +17,8 @@ import java.io.File
 object LinesProcessor {
 
     private const val BATCH_SIZE = 10 // Number of lines to process together
-    private const val TIMEOUT_SECONDS = 40 // Timeout per batch in seconds
+    private const val TIMEOUT_SECONDS = 80 // Timeout per batch in seconds
+    private const val INVALID_JSON_DIR = "build/invalid-llm-json"
 
     /**
      * Cleans HTML tags from text using JSoup and returns plain text.
@@ -144,6 +145,7 @@ object LinesProcessor {
                         continue
                     }
 
+                    var llmResponse: String? = null
                     try {
                         // Combine batch lines content
                         val combinedContent = batchContents.joinToString("\n")
@@ -152,15 +154,22 @@ object LinesProcessor {
                         println("Processing batch at lines ${batchIndex - batchContents.size + 1}-$batchIndex/${lines.size} (${batchContents.size} lines in batch, ${TIMEOUT_SECONDS}s timeout)")
 
                         // Call LLM with combined content and timeout
-                        val response = LLMProvider.generateResponse(combinedContent, TIMEOUT_SECONDS)
+                        llmResponse = LLMProvider.generateResponse(combinedContent, TIMEOUT_SECONDS)
 
-                        if (response.isBlank()) {
+                        if (llmResponse.isNullOrBlank()) {
                             println("  ⚠ Empty response from LLM (possibly timeout or error), skipping batch...")
                             continue
                         }
 
-                        // Parse JSON response
-                        val entries = LexicalEntrySerializer.fromJson(response).entries
+                        // Parse JSON response (with robust error handling)
+                        val entries = parseLexicalEntriesOrNull(
+                            response = llmResponse,
+                            bookId = bookId,
+                            batchIndex = batchIndex
+                        ) ?: run {
+                            println("  ⚠ Invalid JSON from LLM, skipping this batch (bookId=$bookId, batchIndex=$batchIndex)")
+                            continue
+                        }
 
                         // Insert each entry directly into the database
                         entries.forEach { entry ->
@@ -189,6 +198,28 @@ object LinesProcessor {
 
                     } catch (e: Exception) {
                         System.err.println("Error processing batch: ${e.message}")
+                        // If we have the raw LLM response, save it for later inspection
+                        // (only if it was not already saved by parseLexicalEntriesOrNull)
+                        // This helps diagnose issues like truncated JSON.
+                        // We intentionally do not rethrow to allow processing to continue.
+                        // The problematic lines will be retried on the next run.
+                        // Note: suppress any secondary I/O errors to avoid masking the root cause.
+                        try {
+                            // Heuristic: only save if this does not look like a parse error already handled
+                            val message = e.message.orEmpty()
+                            if (llmResponse != null &&
+                                !message.contains("Expected end of the array") &&
+                                !message.contains("Unexpected JSON token")
+                            ) {
+                                saveInvalidJsonResponse(
+                                    response = llmResponse,
+                                    bookId = bookId,
+                                    batchIndex = batchIndex
+                                )
+                            }
+                        } catch (_: Exception) {
+                            // Ignore secondary failures when saving debug JSON
+                        }
                         e.printStackTrace()
                     }
                 }
@@ -279,5 +310,49 @@ object LinesProcessor {
         }
 
         println("===========================\n")
+    }
+
+    /**
+     * Tries to parse the LLM JSON response into a list of lexical entries.
+     * On failure, logs a concise error message and saves the raw response
+     * into build/invalid-llm-json for offline inspection.
+     */
+    private fun parseLexicalEntriesOrNull(
+        response: String,
+        bookId: Long,
+        batchIndex: Int
+    ): List<LexicalEntry>? {
+        return try {
+            LexicalEntrySerializer.fromJson(response).entries
+        } catch (e: Exception) {
+            System.err.println(
+                "  ⚠ Failed to parse LLM JSON for book $bookId, batch $batchIndex: ${e.message}"
+            )
+            try {
+                saveInvalidJsonResponse(response, bookId, batchIndex)
+            } catch (_: Exception) {
+                // Ignore secondary failures when saving debug JSON
+            }
+            null
+        }
+    }
+
+    /**
+     * Saves an invalid LLM JSON response to disk for debugging.
+     * Files are written under build/invalid-llm-json with a descriptive name.
+     */
+    private fun saveInvalidJsonResponse(
+        response: String,
+        bookId: Long,
+        batchIndex: Int
+    ) {
+        val dir = File(INVALID_JSON_DIR)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        val fileName = "book-${bookId}-batch-${batchIndex}-${System.currentTimeMillis()}.json"
+        val file = File(dir, fileName)
+        file.writeText(response)
+        println("  ⚠ Saved invalid JSON response to: ${file.absolutePath}")
     }
 }
