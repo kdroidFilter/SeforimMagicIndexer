@@ -8,4 +8,4 @@
 #40 mishna brakhot
 #1 Bereshit
 #2 Chemot
-3
+#3 Vayikra
