@@ -10,4 +10,5 @@
 #2 Chemot
 #3 Vayikra
 #4 Bamidbar
-5
+#5 Devarim
+412
