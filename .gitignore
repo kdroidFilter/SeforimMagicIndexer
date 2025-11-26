@@ -4,10 +4,12 @@
 .idea
 .kotlin
 .DS_Store
-build
-*/build
+build/*
+!build/db/
+*/build/*
+!*/build/db/
+magicindexer/build/*
 !magicindexer/build/db/
-!magicindexer/build/db/lexical.db
 captures
 .externalNativeBuild
 .cxx
