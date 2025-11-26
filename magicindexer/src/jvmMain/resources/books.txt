@@ -5,10 +5,11 @@
 # - Mixte : 1 2 5-8 12
 # - Commentaires avec #
 
-#40 mishna brakhot
 #1 Bereshit
 #2 Chemot
 #3 Vayikra
 #4 Bamidbar
 #5 Devarim
-412
+# 412 שוע יוד
+#40 משנה ברכות
+6-39

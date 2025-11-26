@@ -20,9 +20,14 @@ CREATE TABLE IF NOT EXISTS surface (
 
 CREATE TABLE IF NOT EXISTS variant (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  value TEXT NOT NULL,
+  value TEXT NOT NULL UNIQUE
+);
+
+-- Junction table for many-to-many relationship between variants and surfaces
+CREATE TABLE IF NOT EXISTS surface_variant (
   surface_id INTEGER NOT NULL REFERENCES surface(id) ON UPDATE CASCADE ON DELETE CASCADE,
-  UNIQUE (value, surface_id)
+  variant_id INTEGER NOT NULL REFERENCES variant(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  PRIMARY KEY (surface_id, variant_id)
 );
 
 -- Table to track processed lines from source database
@@ -35,7 +40,7 @@ CREATE TABLE IF NOT EXISTS processed_lines (
 
 -- Helpful indexes for faster lookups and joins
 CREATE INDEX IF NOT EXISTS surface_base_id_index ON surface(base_id);
-CREATE INDEX IF NOT EXISTS variant_surface_id_index ON variant(surface_id);
+CREATE INDEX IF NOT EXISTS surface_variant_variant_id_index ON surface_variant(variant_id);
 CREATE INDEX IF NOT EXISTS processed_lines_book_id_index ON processed_lines(book_id);
 
 -- Convenience upsert-like helpers (SQLite): ignore duplicates thanks to UNIQUE constraints
@@ -46,7 +51,10 @@ insertSurface:
 INSERT OR IGNORE INTO surface(value, base_id, notes) VALUES (?, ?, ?);
 
 insertVariant:
-INSERT OR IGNORE INTO variant(value, surface_id) VALUES (?, ?);
+INSERT OR IGNORE INTO variant(value) VALUES (?);
+
+insertSurfaceVariant:
+INSERT OR IGNORE INTO surface_variant(surface_id, variant_id) VALUES (?, ?);
 
 -- Common lookups
 selectBaseByValue:
@@ -59,7 +67,7 @@ selectSurfaceByValue:
 SELECT id, value, base_id, notes FROM surface WHERE value = ?;
 
 selectVariantByValue:
-SELECT id, value, surface_id FROM variant WHERE value = ?;
+SELECT id, value FROM variant WHERE value = ?;
 
 selectSurfacesForBase:
 SELECT s.id, s.value, s.base_id, s.notes
@@ -68,9 +76,10 @@ WHERE s.base_id = ?
 ORDER BY s.id;
 
 selectVariantsForSurface:
-SELECT v.id, v.value, v.surface_id
+SELECT v.id, v.value
 FROM variant AS v
-WHERE v.surface_id = ?
+INNER JOIN surface_variant AS sv ON sv.variant_id = v.id
+WHERE sv.surface_id = ?
 ORDER BY v.id;
 
 -- Processed lines tracking queries

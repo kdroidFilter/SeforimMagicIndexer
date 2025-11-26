@@ -182,11 +182,19 @@ object RestoreFromJson {
         val surfaceRow = queries.selectSurfaceByValue(entry.surface).executeAsOne()
         val surfaceId = surfaceRow.id
 
-        // 5. Insert all variants
+        // 5. Insert all variants (globally unique, shared across surfaces)
         entry.variants.forEach { variant ->
-            queries.insertVariant(
-                value_ = variant,
-                surface_id = surfaceId
+            // Insert variant (will be ignored if already exists due to UNIQUE constraint)
+            queries.insertVariant(value_ = variant)
+
+            // Get variant_id
+            val variantRow = queries.selectVariantByValue(variant).executeAsOne()
+            val variantId = variantRow.id
+
+            // Link variant to surface (will be ignored if link already exists)
+            queries.insertSurfaceVariant(
+                surface_id = surfaceId,
+                variant_id = variantId
             )
         }
     }
