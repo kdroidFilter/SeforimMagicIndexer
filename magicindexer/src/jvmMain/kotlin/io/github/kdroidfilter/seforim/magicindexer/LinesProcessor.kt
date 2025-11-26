@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 object LinesProcessor {
 
-    private const val BATCH_SIZE = 2 // Number of lines to process together
+    private const val BATCH_SIZE = 1 // Number of lines to process together
     private const val TIMEOUT_SECONDS = 160 // Timeout per batch in seconds
     private const val INVALID_JSON_DIR = "build/invalid-llm-json"
     private const val DEFAULT_CONCURRENT_REQUESTS = 1 // Default to sequential processing

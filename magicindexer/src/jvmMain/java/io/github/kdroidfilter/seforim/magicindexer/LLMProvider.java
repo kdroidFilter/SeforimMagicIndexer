@@ -78,7 +78,7 @@ public class LLMProvider {
         .builder()
         .temperature(0f)
         // Allow larger JSON responses to avoid truncation
-        .maxOutputTokens(30000)
+        .maxOutputTokens(200000)
         .responseMimeType("application/json")
         .responseSchema(Schema.fromJson(loadResponseSchema()))
         .systemInstruction(
