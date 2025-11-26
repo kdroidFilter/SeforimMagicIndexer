@@ -37,6 +37,9 @@ fun main(args: Array<String>) {
         return
     }
 
+    // Get concurrent requests from environment variable (default: 1)
+    val concurrentRequests = System.getenv("CONCURRENT_REQUESTS")?.toIntOrNull() ?: 1
+
     // Output DB path in build/db directory
     val buildDir = File("build/db")
     if (!buildDir.exists()) {
@@ -66,10 +69,17 @@ fun main(args: Array<String>) {
     println("Output DB: $outputDbPath")
     println("JSON backup: One file per book in build/db/")
     println("Books to process: ${bookIds.joinToString(", ")}")
+    println("Concurrent requests: $concurrentRequests")
     println()
 
     try {
-        LinesProcessor.processLines(sourceDbPath, outputDbPath, bookIds, saveJsonBackup)
+        LinesProcessor.processLines(
+            sourceDbPath = sourceDbPath,
+            outputDbPath = outputDbPath,
+            bookIds = bookIds,
+            saveJsonBackup = saveJsonBackup,
+            concurrentRequests = concurrentRequests
+        )
         println("\n✓ Database successfully created at: $outputDbPath")
         println("✓ JSON backups saved in: ${File(outputDbPath).parent}/")
     } catch (e: Exception) {
@@ -191,8 +201,13 @@ private fun printUsage() {
 
           (default) - Process books from SeforimLibrary database
             Environment Variables (required):
-              SEFORIM_DB     Path to the SeforimLibrary database
-              GEMINI_API_KEY API key for Gemini LLM
+              SEFORIM_DB         Path to the SeforimLibrary database
+              GEMINI_API_KEY     API key for Gemini LLM
+
+            Environment Variables (optional):
+              CONCURRENT_REQUESTS  Number of concurrent LLM requests (default: 1)
+                                   Higher values speed up processing but may hit rate limits.
+                                   Recommended: 2-5 for most APIs.
 
             Configuration:
               Book IDs are read from resources/books.txt
@@ -202,6 +217,7 @@ private fun printUsage() {
             Example:
               export SEFORIM_DB=/path/to/seforim.db
               export GEMINI_API_KEY=your-api-key
+              export CONCURRENT_REQUESTS=3
               java -jar magicindexer.jar
 
           restore <json-file> <target-db>

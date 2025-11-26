@@ -3,12 +3,18 @@ package io.github.kdroidfilter.seforim.magicindexer
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.github.kdroidfilter.seforimlibrary.dao.repository.SeforimRepository
 import io.github.kdroidfilter.seforim.magicindexer.db.Database
+import io.github.kdroidfilter.seforim.magicindexer.db.DatabaseQueries
 import io.github.kdroidfilter.seforim.magicindexer.model.LexicalEntry
 import io.github.kdroidfilter.seforim.magicindexer.model.LexicalEntrySerializer
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import org.jsoup.Jsoup
 import org.jsoup.safety.Safelist
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Processes lines from the SeforimLibrary database through an LLM to generate lexical entries.
@@ -16,9 +22,20 @@ import java.io.File
  */
 object LinesProcessor {
 
-    private const val BATCH_SIZE = 10 // Number of lines to process together
-    private const val TIMEOUT_SECONDS = 80 // Timeout per batch in seconds
+    private const val BATCH_SIZE = 2 // Number of lines to process together
+    private const val TIMEOUT_SECONDS = 160 // Timeout per batch in seconds
     private const val INVALID_JSON_DIR = "build/invalid-llm-json"
+    private const val DEFAULT_CONCURRENT_REQUESTS = 1 // Default to sequential processing
+
+    /**
+     * Data class representing a batch of lines to process.
+     */
+    private data class BatchData(
+        val contents: List<String>,
+        val lineIds: List<Long>,
+        val startIndex: Int,
+        val endIndex: Int
+    )
 
     /**
      * Cleans HTML tags from text using JSoup and returns plain text.
@@ -34,24 +51,29 @@ object LinesProcessor {
     /**
      * Processes lines from specified books in the SeforimLibrary database.
      * Writes entries directly to the lexical database incrementally.
-     * Lines are processed in batches of 10 to optimize LLM calls.
+     * Lines are processed in batches to optimize LLM calls.
      *
      * @param sourceDbPath Path to the source SeforimLibrary database
      * @param outputDbPath Path to save the generated lexical database
      * @param bookIds List of book IDs to process (defaults to 1-10)
      * @param saveJsonBackup If true, saves a JSON backup for debugging
+     * @param concurrentRequests Number of concurrent LLM requests (default: 1 for sequential)
      * @return Number of entries processed
      */
     fun processLines(
         sourceDbPath: String,
         outputDbPath: String,
         bookIds: List<Long> = (1L..10L).toList(),
-        saveJsonBackup: Boolean = false
+        saveJsonBackup: Boolean = false,
+        concurrentRequests: Int = DEFAULT_CONCURRENT_REQUESTS
     ): Int = runBlocking {
+        val effectiveConcurrency = concurrentRequests.coerceIn(1, 250) // Limit between 1 and 20
+
         println("=== Starting Incremental Processing ===")
         println("Source DB: $sourceDbPath")
         println("Output DB: $outputDbPath")
         println("Books to process: ${bookIds.joinToString(", ")}")
+        println("Concurrent requests: $effectiveConcurrency")
 
         // Initialize the source repository
         println("\nInitializing SeforimRepository...")
@@ -71,9 +93,16 @@ object LinesProcessor {
         val database = Database(outputDriver)
         val queries = database.databaseQueries
 
-        var totalLinesProcessed = 0
-        var totalLinesSkipped = 0
-        var totalEntriesInserted = 0
+        // Thread-safe counters
+        val totalLinesProcessed = AtomicInteger(0)
+        val totalLinesSkipped = AtomicInteger(0)
+        val totalEntriesInserted = AtomicInteger(0)
+
+        // Mutex for database operations (SQLite is not thread-safe)
+        val dbMutex = Mutex()
+
+        // Semaphore to limit concurrent LLM requests
+        val llmSemaphore = Semaphore(effectiveConcurrency)
 
         try {
             // Process specified books
@@ -89,11 +118,14 @@ object LinesProcessor {
                 println("Book: ${book.title}")
                 println("Total lines: ${book.totalLines}")
 
-                // JSON backup per book
+                // JSON backup per book (thread-safe list)
                 val bookJsonBackup = if (saveJsonBackup) mutableListOf<LexicalEntry>() else null
+                val backupMutex = Mutex()
 
                 // Check how many lines already processed for this book
-                val alreadyProcessedCount = queries.countProcessedLinesForBook(bookId).executeAsOne()
+                val alreadyProcessedCount = dbMutex.withLock {
+                    queries.countProcessedLinesForBook(bookId).executeAsOne()
+                }
                 if (alreadyProcessedCount > 0) {
                     println("Already processed: $alreadyProcessedCount lines (will skip)")
                 }
@@ -101,15 +133,17 @@ object LinesProcessor {
                 // Get all lines for this book
                 val lines = repository.getLines(bookId, 0, book.totalLines)
                 println("Retrieved ${lines.size} lines")
-                println("Processing in batches of $BATCH_SIZE lines")
+                println("Processing in batches of $BATCH_SIZE lines with $effectiveConcurrency concurrent requests")
 
-                // Process lines in batches
+                // Prepare all batches first
+                val batches = mutableListOf<BatchData>()
                 var batchIndex = 0
+
                 while (batchIndex < lines.size) {
                     val batchContents = mutableListOf<String>()
                     val batchLineIds = mutableListOf<Long>()
+                    val startIdx = batchIndex
 
-                    // Build batch of unprocessed lines
                     var currentIndex = batchIndex
                     while (batchContents.size < BATCH_SIZE && currentIndex < lines.size) {
                         val line = lines[currentIndex]
@@ -121,9 +155,11 @@ object LinesProcessor {
                         }
 
                         // Check if line already processed
-                        val isProcessed = queries.isLineProcessed(line.id).executeAsOne()
+                        val isProcessed = dbMutex.withLock {
+                            queries.isLineProcessed(line.id).executeAsOne()
+                        }
                         if (isProcessed) {
-                            totalLinesSkipped++
+                            totalLinesSkipped.incrementAndGet()
                             continue
                         }
 
@@ -137,95 +173,44 @@ object LinesProcessor {
 
                     batchIndex = currentIndex
 
-                    // Skip if batch is empty
-                    if (batchContents.isEmpty()) {
-                        if (batchIndex % 100 == 0 && totalLinesSkipped > 0) {
-                            println("  Skipped $totalLinesSkipped already processed lines...")
-                        }
-                        continue
-                    }
-
-                    var llmResponse: String? = null
-                    try {
-                        // Combine batch lines content
-                        val combinedContent = batchContents.joinToString("\n")
-
-                        // Progress update
-                        println("Processing batch at lines ${batchIndex - batchContents.size + 1}-$batchIndex/${lines.size} (${batchContents.size} lines in batch, ${TIMEOUT_SECONDS}s timeout)")
-
-                        // Call LLM with combined content and timeout
-                        llmResponse = LLMProvider.generateResponse(combinedContent, TIMEOUT_SECONDS)
-
-                        if (llmResponse.isNullOrBlank()) {
-                            println("  ⚠ Empty response from LLM (possibly timeout or error), skipping batch...")
-                            continue
-                        }
-
-                        // Parse JSON response (with robust error handling)
-                        val entries = parseLexicalEntriesOrNull(
-                            response = llmResponse,
-                            bookId = bookId,
-                            batchIndex = batchIndex
-                        ) ?: run {
-                            println("  ⚠ Invalid JSON from LLM, skipping this batch (bookId=$bookId, batchIndex=$batchIndex)")
-                            continue
-                        }
-
-                        // Insert each entry directly into the database
-                        entries.forEach { entry ->
-                            try {
-                                insertEntry(queries, entry)
-                                totalEntriesInserted++
-
-                                // Add to book backup if enabled
-                                bookJsonBackup?.add(entry)
-
-                            } catch (e: Exception) {
-                                System.err.println("Error inserting entry: ${entry.surface} -> ${entry.base}: ${e.message}")
-                            }
-                        }
-
-                        // Mark all lines in batch as processed
-                        val currentTime = System.currentTimeMillis() / 1000
-                        batchLineIds.forEach { lineId ->
-                            queries.insertProcessedLine(lineId, bookId, currentTime)
-                        }
-
-                        totalLinesProcessed += batchContents.size
-
-                        // Progress update
-                        println("  → Processed ${batchContents.size} lines | Generated ${entries.size} entries | Total: $totalLinesProcessed new, $totalLinesSkipped skipped")
-
-                    } catch (e: Exception) {
-                        System.err.println("Error processing batch: ${e.message}")
-                        // If we have the raw LLM response, save it for later inspection
-                        // (only if it was not already saved by parseLexicalEntriesOrNull)
-                        // This helps diagnose issues like truncated JSON.
-                        // We intentionally do not rethrow to allow processing to continue.
-                        // The problematic lines will be retried on the next run.
-                        // Note: suppress any secondary I/O errors to avoid masking the root cause.
-                        try {
-                            // Heuristic: only save if this does not look like a parse error already handled
-                            val message = e.message.orEmpty()
-                            if (llmResponse != null &&
-                                !message.contains("Expected end of the array") &&
-                                !message.contains("Unexpected JSON token")
-                            ) {
-                                saveInvalidJsonResponse(
-                                    response = llmResponse,
-                                    bookId = bookId,
-                                    batchIndex = batchIndex
-                                )
-                            }
-                        } catch (_: Exception) {
-                            // Ignore secondary failures when saving debug JSON
-                        }
-                        e.printStackTrace()
+                    if (batchContents.isNotEmpty()) {
+                        batches.add(BatchData(
+                            contents = batchContents.toList(),
+                            lineIds = batchLineIds.toList(),
+                            startIndex = startIdx,
+                            endIndex = batchIndex
+                        ))
                     }
                 }
 
-                val bookProcessedCount = queries.countProcessedLinesForBook(bookId).executeAsOne()
-                println("Completed book $bookId: $totalLinesProcessed new lines processed, $totalLinesSkipped skipped, $bookProcessedCount total processed for this book")
+                println("Prepared ${batches.size} batches for parallel processing")
+
+                // Process batches in parallel with limited concurrency
+                val jobs = batches.map { batch ->
+                    async(Dispatchers.IO) {
+                        llmSemaphore.withPermit {
+                            processBatch(
+                                batch = batch,
+                                bookId = bookId,
+                                totalLines = lines.size,
+                                queries = queries,
+                                dbMutex = dbMutex,
+                                bookJsonBackup = bookJsonBackup,
+                                backupMutex = backupMutex,
+                                totalLinesProcessed = totalLinesProcessed,
+                                totalEntriesInserted = totalEntriesInserted
+                            )
+                        }
+                    }
+                }
+
+                // Wait for all batches to complete
+                jobs.awaitAll()
+
+                val bookProcessedCount = dbMutex.withLock {
+                    queries.countProcessedLinesForBook(bookId).executeAsOne()
+                }
+                println("Completed book $bookId: ${totalLinesProcessed.get()} new lines processed, ${totalLinesSkipped.get()} skipped, $bookProcessedCount total processed for this book")
 
                 // Save JSON backup for this book
                 if (saveJsonBackup && bookJsonBackup != null && bookJsonBackup.isNotEmpty()) {
@@ -247,13 +232,15 @@ object LinesProcessor {
             }
 
             println("\n=== Processing Complete ===")
-            println("Total new lines processed: $totalLinesProcessed")
-            println("Total lines skipped (already processed): $totalLinesSkipped")
-            println("Total entries inserted: $totalEntriesInserted")
+            println("Total new lines processed: ${totalLinesProcessed.get()}")
+            println("Total lines skipped (already processed): ${totalLinesSkipped.get()}")
+            println("Total entries inserted: ${totalEntriesInserted.get()}")
             println("Output DB: $outputDbPath")
 
             // Print statistics
-            printStatistics(queries, bookIds)
+            dbMutex.withLock {
+                printStatistics(queries, bookIds)
+            }
 
         } finally {
             // Close connections
@@ -261,14 +248,102 @@ object LinesProcessor {
             outputDriver.close()
         }
 
-        return@runBlocking totalEntriesInserted
+        return@runBlocking totalEntriesInserted.get()
+    }
+
+    /**
+     * Processes a single batch of lines.
+     */
+    private suspend fun processBatch(
+        batch: BatchData,
+        bookId: Long,
+        totalLines: Int,
+        queries: DatabaseQueries,
+        dbMutex: Mutex,
+        bookJsonBackup: MutableList<LexicalEntry>?,
+        backupMutex: Mutex?,
+        totalLinesProcessed: AtomicInteger,
+        totalEntriesInserted: AtomicInteger
+    ) {
+        var llmResponse: String? = null
+        try {
+            // Combine batch lines content
+            val combinedContent = batch.contents.joinToString("\n")
+
+            // Progress update
+            println("Processing batch at lines ${batch.startIndex + 1}-${batch.endIndex}/$totalLines (${batch.contents.size} lines in batch, ${TIMEOUT_SECONDS}s timeout)")
+
+            // Call LLM with combined content and timeout
+            llmResponse = LLMProvider.generateResponse(combinedContent, TIMEOUT_SECONDS)
+
+            if (llmResponse.isNullOrBlank()) {
+                println("  ⚠ Empty response from LLM (possibly timeout or error), skipping batch...")
+                return
+            }
+
+            // Parse JSON response (with robust error handling)
+            val entries = parseLexicalEntriesOrNull(
+                response = llmResponse,
+                bookId = bookId,
+                batchIndex = batch.endIndex
+            ) ?: run {
+                println("  ⚠ Invalid JSON from LLM, skipping this batch (bookId=$bookId, batchIndex=${batch.endIndex})")
+                return
+            }
+
+            // Insert each entry directly into the database (synchronized)
+            dbMutex.withLock {
+                entries.forEach { entry ->
+                    try {
+                        insertEntry(queries, entry)
+                        totalEntriesInserted.incrementAndGet()
+
+                        // Add to book backup if enabled
+                        bookJsonBackup?.add(entry)
+
+                    } catch (e: Exception) {
+                        System.err.println("Error inserting entry: ${entry.surface} -> ${entry.base}: ${e.message}")
+                    }
+                }
+
+                // Mark all lines in batch as processed
+                val currentTime = System.currentTimeMillis() / 1000
+                batch.lineIds.forEach { lineId ->
+                    queries.insertProcessedLine(lineId, bookId, currentTime)
+                }
+            }
+
+            totalLinesProcessed.addAndGet(batch.contents.size)
+
+            // Progress update
+            println("  → Processed ${batch.contents.size} lines | Generated ${entries.size} entries | Total: ${totalLinesProcessed.get()} new")
+
+        } catch (e: Exception) {
+            System.err.println("Error processing batch: ${e.message}")
+            try {
+                val message = e.message.orEmpty()
+                if (llmResponse != null &&
+                    !message.contains("Expected end of the array") &&
+                    !message.contains("Unexpected JSON token")
+                ) {
+                    saveInvalidJsonResponse(
+                        response = llmResponse,
+                        bookId = bookId,
+                        batchIndex = batch.endIndex
+                    )
+                }
+            } catch (_: Exception) {
+                // Ignore secondary failures when saving debug JSON
+            }
+            e.printStackTrace()
+        }
     }
 
     /**
      * Inserts a single lexical entry into the database.
      * Handles the relationships: base -> surface -> variants
      */
-    private fun insertEntry(queries: io.github.kdroidfilter.seforim.magicindexer.db.DatabaseQueries, entry: LexicalEntry) {
+    private fun insertEntry(queries: DatabaseQueries, entry: LexicalEntry) {
         // 1. Insert base (will be ignored if already exists due to UNIQUE constraint)
         queries.insertBase(entry.base)
 
@@ -298,7 +373,7 @@ object LinesProcessor {
     /**
      * Prints database statistics.
      */
-    private fun printStatistics(queries: io.github.kdroidfilter.seforim.magicindexer.db.DatabaseQueries, bookIds: List<Long>) {
+    private fun printStatistics(queries: DatabaseQueries, bookIds: List<Long>) {
         println("\n=== Database Statistics ===")
         println("Database created successfully with incremental writes")
 
