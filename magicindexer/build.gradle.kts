@@ -45,3 +45,11 @@ kotlin {
     }
 
 }
+
+// Task to run the Hebrew diacritics post-processor
+tasks.register<JavaExec>("runPostProcessor") {
+    group = "application"
+    description = "Run the Hebrew diacritics post-processor to clean nikud and taamim from the database"
+    mainClass.set("io.github.kdroidfilter.seforim.magicindexer.HebrewDiacriticsPostProcessorKt")
+    classpath = kotlin.jvm().compilations["main"].runtimeDependencyFiles
+}

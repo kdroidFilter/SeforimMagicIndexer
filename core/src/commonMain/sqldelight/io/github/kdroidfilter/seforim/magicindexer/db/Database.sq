@@ -95,3 +95,57 @@ SELECT COUNT(*) FROM processed_lines WHERE book_id = ?;
 
 selectProcessedLineIdsForBook:
 SELECT line_id FROM processed_lines WHERE book_id = ? ORDER BY line_id;
+
+-- Post-processing queries
+
+selectAllSurfaces:
+SELECT id, value FROM surface;
+
+updateSurfaceValue:
+UPDATE surface SET value = ? WHERE id = ?;
+
+-- Move variant associations from one surface to another (for merging duplicates)
+mergeSurfaceVariants:
+INSERT OR IGNORE INTO surface_variant(surface_id, variant_id)
+SELECT ?, variant_id FROM surface_variant WHERE surface_id = ?;
+
+-- Delete a surface (used after merging)
+deleteSurface:
+DELETE FROM surface WHERE id = ?;
+
+-- Delete surface_variant associations for a surface
+deleteSurfaceVariants:
+DELETE FROM surface_variant WHERE surface_id = ?;
+
+selectAllVariants:
+SELECT id, value FROM variant;
+
+updateVariantValue:
+UPDATE variant SET value = ? WHERE id = ?;
+
+-- Move surface associations from one variant to another (for merging duplicates)
+mergeVariantSurfaces:
+INSERT OR IGNORE INTO surface_variant(surface_id, variant_id)
+SELECT surface_id, ? FROM surface_variant WHERE variant_id = ?;
+
+-- Delete variant associations
+deleteVariantSurfaces:
+DELETE FROM surface_variant WHERE variant_id = ?;
+
+-- Delete a variant
+deleteVariant:
+DELETE FROM variant WHERE id = ?;
+
+selectAllBases:
+SELECT id, value FROM base;
+
+updateBaseValue:
+UPDATE base SET value = ? WHERE id = ?;
+
+-- Move surfaces from one base to another (for merging duplicates)
+mergeBaseSurfaces:
+UPDATE surface SET base_id = ? WHERE base_id = ?;
+
+-- Delete a base
+deleteBase:
+DELETE FROM base WHERE id = ?;
