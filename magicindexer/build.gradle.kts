@@ -33,7 +33,7 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.kotlinx.serialization.json)
-            implementation("com.google.genai:google-genai:1.28.0")
+            implementation("com.google.genai:google-genai:1.34.0")
             implementation("org.jsoup:jsoup:1.21.2")
         }
 

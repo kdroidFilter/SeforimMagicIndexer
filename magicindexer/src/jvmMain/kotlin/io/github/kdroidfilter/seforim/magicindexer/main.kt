@@ -72,6 +72,9 @@ fun main(args: Array<String>) {
     println("Concurrent requests: $concurrentRequests")
     println()
 
+    // Download database from latest release if it doesn't exist locally
+    GitHubReleaseDownloader.ensureDatabaseFromRelease(outputDbPath)
+
     try {
         LinesProcessor.processLines(
             sourceDbPath = sourceDbPath,
@@ -213,6 +216,9 @@ private fun printUsage() {
               Book IDs are read from resources/books.txt
               Output database: build/db/lexical.db (automatically created)
               JSON backups: build/db/book-{id}-{title}.json (one per book)
+
+            Note: If lexical.db doesn't exist, it will be automatically downloaded
+            from the latest GitHub release to continue from existing progress.
 
             Example:
               export SEFORIM_DB=/path/to/seforim.db
