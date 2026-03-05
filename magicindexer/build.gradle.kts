@@ -24,8 +24,8 @@ kotlin {
 
         jvmMain.dependencies {
             // SeforimLibrary dependencies from parent build
-            implementation("io.github.kdroidfilter.seforimlibrary:core")
-            implementation("io.github.kdroidfilter.seforimlibrary:dao")
+            implementation(libs.seforimlibrary.core)
+            implementation(libs.seforimlibrary.dao)
 
             // Other dependencies
             implementation(libs.kotlinx.coroutines.swing)
@@ -33,8 +33,8 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.kotlinx.serialization.json)
-            implementation("com.google.genai:google-genai:1.34.0")
-            implementation("org.jsoup:jsoup:1.21.2")
+            implementation(libs.google.genai)
+            implementation(libs.jsoup)
         }
 
         jvmTest.dependencies {

@@ -7,7 +7,8 @@ kotlinx-serialization = "1.9.0"
 sqlDelight = "2.1.0"
 compose = "1.9.3"
 jvmToolchain = "25"
-
+googleGenai = "1.34.0"
+jsoup = "1.21.2"
 
 [libraries]
 
@@ -20,6 +21,10 @@ sqlDelight-driver-sqlite = { module = "app.cash.sqldelight:sqlite-driver", versi
 sqlDelight-driver-android = { module = "app.cash.sqldelight:android-driver", version.ref = "sqlDelight" }
 sqlDelight-driver-native = { module = "app.cash.sqldelight:native-driver", version.ref = "sqlDelight" }
 sqlDelight-driver-js = { module = "app.cash.sqldelight:web-worker-driver", version.ref = "sqlDelight" }
+google-genai = { module = "com.google.genai:google-genai", version.ref = "googleGenai" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+seforimlibrary-core = { module = "io.github.kdroidfilter.seforimlibrary:core" }
+seforimlibrary-dao = { module = "io.github.kdroidfilter.seforimlibrary:dao" }
 
 [plugins]
 
