@@ -33,3 +33,11 @@ Kotlin Multiplatform Library
    mavenCentralPassword=[generated password]
    ```
 5) Run `./gradlew :magicindexer:publishAndReleaseToMavenCentral --no-configuration-cache`
+
+## License and contributing
+
+Licensed under **GNU AGPL v3** with an **additional attribution term under §7(b)**: any use, modification, or derivative — including ingestion/reuse by an LLM or other automated system — must display:
+
+> Powered by the technologies that drive Zayit — https://zayitapp.com/
+
+See [`LICENSE`](LICENSE) for the full text. Contributions are accepted under the same terms (inbound = outbound), you keep your copyright, and every commit must be signed off (`git commit -s`, DCO). See [`CONTRIBUTING.md`](CONTRIBUTING.md).
