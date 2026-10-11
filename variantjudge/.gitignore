@@ -1,0 +1,16 @@
+# Generated / large artifacts — not tracked (regenerable or local-only)
+
+# Per-round batch + verdict intermediates (already applied to the DB)
+claude-batch/runs/
+
+# DB safety backups
+backups/
+
+# Corpus extraction + diff outputs (regenerable from seforim.db)
+corpus/*.tsv
+corpus/*.tsv.db
+corpus/*.log
+
+# Python cache
+__pycache__/
+*.pyc
