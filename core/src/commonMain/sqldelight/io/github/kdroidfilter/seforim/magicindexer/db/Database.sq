@@ -30,6 +30,14 @@ CREATE TABLE IF NOT EXISTS surface_variant (
   PRIMARY KEY (surface_id, variant_id)
 );
 
+-- Extra lemmas of an ambiguous surface (פנינו: base פנה, also a form of פנים).
+-- surface.base_id stays the primary lemma; this lists the other lemmas it is a genuine form of.
+CREATE TABLE IF NOT EXISTS surface_extra_base (
+  surface_id INTEGER NOT NULL REFERENCES surface(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  base_id INTEGER NOT NULL REFERENCES base(id) ON UPDATE CASCADE ON DELETE CASCADE,
+  PRIMARY KEY (surface_id, base_id)
+);
+
 -- Table to track processed lines from source database
 -- Prevents reprocessing the same line multiple times
 CREATE TABLE IF NOT EXISTS processed_lines (
@@ -42,6 +50,7 @@ CREATE TABLE IF NOT EXISTS processed_lines (
 CREATE INDEX IF NOT EXISTS surface_base_id_index ON surface(base_id);
 CREATE INDEX IF NOT EXISTS surface_variant_variant_id_index ON surface_variant(variant_id);
 CREATE INDEX IF NOT EXISTS processed_lines_book_id_index ON processed_lines(book_id);
+CREATE INDEX IF NOT EXISTS surface_extra_base_base_id_index ON surface_extra_base(base_id);
 
 -- Convenience upsert-like helpers (SQLite): ignore duplicates thanks to UNIQUE constraints
 insertBase:
