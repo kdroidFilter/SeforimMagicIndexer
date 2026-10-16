@@ -83,6 +83,7 @@ fun main(args: Array<String>) {
             saveJsonBackup = saveJsonBackup,
             concurrentRequests = concurrentRequests
         )
+        CrossFamilyPostProcessor.postProcess(outputDbPath)
         println("\n✓ Database successfully created at: $outputDbPath")
         println("✓ JSON backups saved in: ${File(outputDbPath).parent}/")
     } catch (e: Exception) {
