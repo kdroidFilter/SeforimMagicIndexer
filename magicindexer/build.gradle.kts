@@ -53,3 +53,11 @@ tasks.register<JavaExec>("runPostProcessor") {
     mainClass.set("io.github.kdroidfilter.seforim.magicindexer.HebrewDiacriticsPostProcessorKt")
     classpath = kotlin.jvm().compilations["main"].runtimeDependencyFiles
 }
+
+// Task to remove sibling acronyms filed under the wrong family (e.g. רמב"ן inside רמב"ם)
+tasks.register<JavaExec>("runCrossFamilyPostProcessor") {
+    group = "application"
+    description = "Remove forms that spell a sibling acronym of their family from the database"
+    mainClass.set("io.github.kdroidfilter.seforim.magicindexer.CrossFamilyPostProcessorKt")
+    classpath = kotlin.jvm().compilations["main"].runtimeDependencyFiles
+}
