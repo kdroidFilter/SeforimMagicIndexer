@@ -40,4 +40,6 @@ Licensed under **GNU AGPL v3** with an **additional attribution term under §7(b
 
 > Powered by the technologies that drive Zayit — https://zayitapp.com/
 
-See [`LICENSE`](LICENSE) for the full text. Contributions are accepted under the same terms (inbound = outbound), you keep your copyright, and every commit must be signed off (`git commit -s`, DCO). See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+See [`LICENSE`](LICENSE) for the full text. Contributions are accepted under the same terms (inbound = outbound), you keep your copyright, you sign the [CLA](CLA.md) once (the bot asks on your first pull request), and every commit must be signed off (`git commit -s`, DCO). See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Like [Zayit](https://github.com/kdroidFilter/Zayit), it is **open core**: the [CLA](CLA.md) also lets the maintainer distribute contributions under other terms, including in Zayit's official builds with their proprietary modules (see "Open core" in [Zayit's README](https://github.com/kdroidFilter/Zayit#open-core)).
