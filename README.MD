@@ -36,10 +36,10 @@ Kotlin Multiplatform Library
 
 ## License and contributing
 
-Licensed under **GNU AGPL v3** with an **additional attribution term under §7(b)**: any use, modification, or derivative — including ingestion/reuse by an LLM or other automated system — must display:
+Licensed under the **[Zayit Public License](LICENSE)**: the GNU AGPL v3, plus a grant back to the maintainer, an attribution term and a trademark clause. Its attribution term (Section 4): any use, modification, or derivative — including ingestion/reuse by an LLM or other automated system — must display:
 
 > Powered by the technologies that drive Zayit — https://zayitapp.com/
 
-See [`LICENSE`](LICENSE) for the full text. Contributions are accepted under the same terms (inbound = outbound), you keep your copyright, you sign the [CLA](CLA.md) once (the bot asks on your first pull request), and every commit must be signed off (`git commit -s`, DCO). See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+See [`LICENSE`](LICENSE) for the full text. Contributions are accepted under the same terms (inbound = outbound), you keep your copyright, there is no CLA to sign, and every commit must be signed off (`git commit -s`, DCO). See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Like [Zayit](https://github.com/kdroidFilter/Zayit), it is **open core**: the [CLA](CLA.md) also lets the maintainer distribute contributions under other terms, including in Zayit's official builds with their proprietary modules (see "Open core" in [Zayit's README](https://github.com/kdroidFilter/Zayit#open-core)).
+Like [Zayit](https://github.com/kdroidFilter/Zayit), it is **open core**: Section 3 of the license (the grant back) also lets the maintainer distribute contributions, and the modifications of any fork, under other terms, including in Zayit's official builds with their proprietary modules (see "Open core" in [Zayit's README](https://github.com/kdroidFilter/Zayit#open-core)).
